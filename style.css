@@ -966,16 +966,16 @@ ul {
   }
 
   /* 소개 페이지 대표 이미지 크기 조절 */
-.about-home-image {
-  max-width: 430px;
-  min-height: 0;
-  justify-self: end;
-}
+  .about-home-image {
+    max-width: 430px;
+    min-height: 0;
+    justify-self: end;
+  }
 
-.about-home-image img {
-  width: 100%;
-  height: auto;
-  min-height: 0;
-  object-fit: contain;
-}
+  .about-home-image img {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    object-fit: contain;
+  }
 }
