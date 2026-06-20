@@ -57,29 +57,62 @@ ul {
 }
 
 .container {
-  width: min(1180px, calc(100% - 40px));
+  width: min(1400px, calc(100% - 64px));
   margin: 0 auto;
 }
 
-/* =========================
-   Header
-========================= */
-
-.header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
-}
-
 .header-inner {
-  height: 78px;
+  min-height: 78px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 28px;
+}
+
+.home-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 64px;
+}
+
+.home h1 {
+  font-size: clamp(2.5rem, 5vw, 5.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.07em;
+  color: var(--blue);
+  margin-bottom: 24px;
+  white-space: nowrap;
+}
+
+.home-description {
+  max-width: 680px;
+  color: #374151;
+  font-size: 1.08rem;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 980px) {
+  .header-inner {
+    height: auto;
+    padding: 16px 0;
+    flex-wrap: wrap;
+  }
+
+  .home-inner {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .home h1 {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    width: calc(100% - 28px);
+  }
 }
 
 .logo-area {
@@ -781,7 +814,8 @@ ul {
 .footer-brand img {
   width: 62px;
   height: 62px;
-  object-fit: contain;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .footer-brand h2 {
@@ -929,5 +963,19 @@ ul {
   .qr-content img {
     width: 110px;
     height: 110px;
+  }
+
+  /* 소개 페이지 대표 이미지 크기 조절 */
+  .about-home-image {
+    max-width: 430px;
+    min-height: 0;
+    justify-self: end;
+  }
+
+  .about-home-image img {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    object-fit: contain;
   }
 }
