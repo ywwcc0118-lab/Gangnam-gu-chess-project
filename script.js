@@ -11,6 +11,192 @@
 // 5. 페이지를 내리면 Header에 그림자 효과 추가
 //
 
+// 공지 API URL
+const NOTICE_API_URL="https://script.google.com/macros/s/AKfycbwSLSHgC4OfUcj4-z-3AdQGLY5qEnrtlTDyFnbzY3qRJgxwWqZ8zlGlxRK1CyWvB-ip/exec"
+
+let noticeData = [];
+// 공지 불러오기
+async function loadNotices() {
+  const container = document.querySelector("#notice-list");
+
+  // 공지 영역이 없는 페이지에서는 실행하지 않음
+  if (!container) return;
+
+  container.innerHTML = `
+    <p class="notice-loading">
+      공지사항을 불러오는 중입니다.
+    </p>
+  `;
+
+  try {
+    const response = await fetch(NOTICE_API_URL, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP 오류: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(
+        result.message || "공지 데이터를 불러오지 못했습니다."
+      );
+    }
+
+    noticeData = result.notices;
+
+    const currentPage =
+      window.location.pathname.split("/").pop() || "index.html";
+
+    // 메인 페이지는 최근 4개, 공지 페이지는 전체 출력
+    const noticesToShow =
+      currentPage === "index.html"
+        ? noticeData.slice(0, 4)
+        : noticeData;
+
+    renderNotices(container, noticesToShow);
+  } catch (error) {
+    console.error("공지사항 로딩 실패:", error);
+
+    container.innerHTML = `
+      <p class="notice-error">
+        공지사항을 불러오지 못했습니다.
+        잠시 후 다시 시도해 주세요.
+      </p>
+    `;
+  }
+}
+
+function renderNotices(container, notices) {
+  if (notices.length === 0) {
+    container.innerHTML = `
+      <p class="notice-empty">
+        등록된 공지사항이 없습니다.
+      </p>
+    `;
+    return;
+  }
+
+  container.innerHTML = notices
+    .map(createNoticeCard)
+    .join("");
+}
+
+function createNoticeCard(notice) {
+  const highlightClass =
+    notice.important === true ? " highlight" : "";
+
+  const externalUrl =
+    String(notice.externalUrl ?? "").trim();
+
+  const imageUrl =
+    String(notice.imageUrl ?? "").trim();
+
+  const imageHtml = imageUrl
+    ? `
+      <img
+        src="${escapeHtml(imageUrl)}"
+        alt="${escapeHtml(notice.title)} 관련 이미지"
+        class="notice-card-image"
+        loading="lazy"
+      />
+    `
+    : "";
+
+  const detailLink = externalUrl
+    ? `
+      <a
+        href="${escapeHtml(externalUrl)}"
+        class="notice-detail-link"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        자세히 보기
+      </a>
+    `
+    : `
+      <span class="notice-link-disabled">
+        링크 준비 중
+      </span>
+    `;
+
+  return `
+    <article class="notice-card${highlightClass}">
+      ${imageHtml}
+
+      <div class="notice-card-body">
+        <span class="notice-tag">
+          ${escapeHtml(notice.category)}
+        </span>
+
+        <h3>${escapeHtml(notice.title)}</h3>
+
+        <p>${escapeHtml(notice.summary)}</p>
+
+        <div class="notice-meta">
+          <span>${formatDate(notice.date)}</span>
+          ${detailLink}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return "";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(dateValue)
+      .split("T")[0]
+      .replaceAll("-", ".");
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Seoul",
+  })
+    .format(date)
+    .replaceAll(". ", ".")
+    .replace(/\.$/, "");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getSafeExternalUrl(value) {
+  const url = String(value ?? "").trim();
+
+  if (!url) return "";
+
+  try {
+    const parsedUrl = new URL(url);
+
+    // http 또는 https 주소만 허용
+    if (
+      parsedUrl.protocol !== "http:" &&
+      parsedUrl.protocol !== "https:"
+    ) {
+      return "";
+    }
+
+    return parsedUrl.href;
+  } catch {
+    return "";
+  }
+}
+
 // HTML 문서가 다 로딩된 후 JavaScript 실행
 document.addEventListener("DOMContentLoaded", () => {
   // =========================
@@ -77,6 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
         behavior: "smooth",
       });
     });
+    loadNotices();
   });
 
   // =========================
@@ -139,24 +326,50 @@ document.addEventListener("DOMContentLoaded", () => {
   //
 
   if (noticeScroll) {
-    noticeScroll.addEventListener(
-      "wheel",
-      (event) => {
-        // 세로 휠 움직임이 가로 움직임보다 클 때만 실행
-        // 트랙패드에서 대각선 움직임이 이상하게 먹히는 걸 막기 위함
-        if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-          // 기본 세로 스크롤 막기
-          event.preventDefault();
+  noticeScroll.addEventListener(
+  "wheel",
+  (event) => {
+    // 트랙패드에서 이미 가로로 움직이는 경우는
+    // 브라우저 기본 동작에 맡김
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+      return;
+    }
 
-          // 세로 휠 움직임을 가로 스크롤 값으로 바꿔줌
-          noticeScroll.scrollLeft += event.deltaY;
-        }
-      },
-      {
-        // preventDefault를 쓰려면 passive를 false로 해야 함
-        passive: false,
-      }
-    );
+    const maxScrollLeft =
+      noticeScroll.scrollWidth - noticeScroll.clientWidth;
+
+    // 카드가 영역보다 작아서 가로 스크롤이 필요 없는 경우
+    if (maxScrollLeft <= 1) {
+      return;
+    }
+
+    const isScrollingRight = event.deltaY > 0;
+    const isScrollingLeft = event.deltaY < 0;
+
+    const isAtStart = noticeScroll.scrollLeft <= 0;
+    const isAtEnd =
+      noticeScroll.scrollLeft >= maxScrollLeft - 1;
+
+    // 오른쪽으로 더 이동할 수 있는지
+    const canScrollRight =
+      isScrollingRight && !isAtEnd;
+
+    // 왼쪽으로 더 이동할 수 있는지
+    const canScrollLeft =
+      isScrollingLeft && !isAtStart;
+
+    // 실제로 가로 이동할 수 있을 때만
+    // 페이지의 세로 스크롤을 막음
+    if (canScrollRight || canScrollLeft) {
+      event.preventDefault();
+
+      noticeScroll.scrollLeft += event.deltaY;
+    }
+  },
+  {
+    passive: false,
+  }
+);
 
     // =========================
     // 4. 공지 영역 마우스 드래그 스크롤
