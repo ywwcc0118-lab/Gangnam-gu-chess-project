@@ -15,6 +15,68 @@
 const NOTICE_API_URL="https://script.google.com/macros/s/AKfycbwSLSHgC4OfUcj4-z-3AdQGLY5qEnrtlTDyFnbzY3qRJgxwWqZ8zlGlxRK1CyWvB-ip/exec"
 
 let noticeData = [];
+
+const NOTICES_PER_PAGE = 8;
+
+function renderNoticeBoard(notices, page = 1) {
+  const container =
+    document.querySelector("#notice-list");
+
+  const pagination =
+    document.querySelector("#notice-pagination");
+
+  if (!container) return;
+
+  if (notices.length === 0) {
+    container.innerHTML = `
+      <p class="notice-empty">
+        등록된 공지사항이 없습니다.
+      </p>
+    `;
+
+    if (pagination) {
+      pagination.innerHTML = "";
+    }
+
+    return;
+  }
+
+  const totalPages = Math.ceil(
+    notices.length / NOTICES_PER_PAGE
+  );
+
+  const safePage = Math.min(
+    Math.max(page, 1),
+    totalPages
+  );
+
+  const startIndex =
+    (safePage - 1) * NOTICES_PER_PAGE;
+
+  const noticesForPage = notices.slice(
+    startIndex,
+    startIndex + NOTICES_PER_PAGE
+  );
+
+  container.innerHTML = `
+    <div class="notice-board-header">
+      <span>분류</span>
+      <span>제목</span>
+      <span>날짜</span>
+    </div>
+
+    ${noticesForPage
+      .map(createNoticeListItem)
+      .join("")}
+  `;
+
+  renderPagination(
+    pagination,
+    totalPages,
+    safePage
+  );
+}
+
 // 공지 불러오기
 async function loadNotices() {
   const container = document.querySelector("#notice-list");
@@ -45,18 +107,34 @@ async function loadNotices() {
       );
     }
 
-    noticeData = result.notices;
+    // 여기서 최신 날짜순으로 정렬
+    noticeData = [...result.notices].sort((a, b) => {
+      const aTime = new Date(a.date).getTime();
+      const bTime = new Date(b.date).getTime();
+
+      const safeATime =
+        Number.isNaN(aTime) ? -Infinity : aTime;
+
+      const safeBTime =
+        Number.isNaN(bTime) ? -Infinity : bTime;
+
+      return safeBTime - safeATime;
+    });
 
     const currentPage =
       window.location.pathname.split("/").pop() || "index.html";
 
-    // 메인 페이지는 최근 4개, 공지 페이지는 전체 출력
-    const noticesToShow =
-      currentPage === "index.html"
-        ? noticeData.slice(0, 4)
-        : noticeData;
+    const isHomePage =
+      currentPage === "index.html" ||
+      currentPage === "";
 
-    renderNotices(container, noticesToShow);
+    if (isHomePage) {
+      // 메인 페이지: 최신 4개 카드
+      renderNotices(container, noticeData.slice(0, 4));
+    } else {
+      // 전체 공지 페이지: 게시판 목록
+      renderNoticeBoard(noticeData, 1);
+    }
   } catch (error) {
     console.error("공지사항 로딩 실패:", error);
 
@@ -67,6 +145,111 @@ async function loadNotices() {
       </p>
     `;
   }
+}
+
+function createNoticeListItem(notice) { // 공지 제목 클릭 -> 채널로 연결
+  const externalUrl =
+    String(notice.externalUrl ?? "").trim();
+
+  const titleHtml = externalUrl
+    ? `
+      <a
+        href="${escapeHtml(externalUrl)}"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="notice-board-title"
+      >
+        ${escapeHtml(notice.title)}
+      </a>
+    `
+    : `
+      <span class="notice-board-title disabled">
+        ${escapeHtml(notice.title)}
+      </span>
+    `;
+
+  return `
+    <article class="notice-board-item">
+      <span class="notice-board-category">
+        ${escapeHtml(notice.category)}
+      </span>
+
+      <div class="notice-board-content">
+        ${titleHtml}
+
+        <p>
+          ${escapeHtml(notice.summary)}
+        </p>
+      </div>
+
+      <time class="notice-board-date">
+        ${formatDate(notice.date)}
+      </time>
+    </article>
+  `;
+}
+
+function renderPagination( // 페이지 번호 함수
+  container,
+  totalPages,
+  currentPage
+) {
+  if (!container || totalPages <= 1) {
+    if (container) {
+      container.innerHTML = "";
+    }
+
+    return;
+  }
+
+  let paginationHtml = "";
+
+  if (currentPage > 1) {
+    paginationHtml += `
+      <button
+        type="button"
+        class="pagination-button"
+        data-page="${currentPage - 1}"
+      >
+        이전
+      </button>
+    `;
+  }
+
+  for (
+    let page = 1;
+    page <= totalPages;
+    page++
+  ) {
+    paginationHtml += `
+      <button
+        type="button"
+        class="pagination-button ${
+          page === currentPage ? "active" : ""
+        }"
+        data-page="${page}"
+        aria-current="${
+          page === currentPage ? "page" : "false"
+        }"
+      >
+        ${page}
+      </button>
+    `;
+  }
+
+  if (currentPage < totalPages) {
+    paginationHtml += `
+      <button
+        type="button"
+        class="pagination-button"
+        data-page="${currentPage + 1}"
+      >
+        다음
+      </button>
+    `;
+  }
+
+  container.innerHTML = paginationHtml;
 }
 
 function renderNotices(container, notices) {
@@ -228,43 +411,34 @@ document.addEventListener("DOMContentLoaded", () => {
   // 소개 메뉴 클릭 → #about 섹션으로 이동
   //
 
-  navLinks.forEach((link) => {
-    link.addEventListener("click", (event) => {
-      // 클릭한 메뉴의 href 값 가져오기
-      // 예: "#notice", "#about"
-      const targetId = link.getAttribute("href");
+    navLinks.forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const targetId = link.getAttribute("href");
 
-      // href가 없거나 #으로 시작하지 않으면 무시
-      if (!targetId || !targetId.startsWith("#")) return;
+        if (!targetId || !targetId.startsWith("#")) return;
 
-      // 이동할 실제 섹션 찾기
-      const targetElement = document.querySelector(targetId);
+        const targetElement =
+          document.querySelector(targetId);
 
-      // 해당 섹션이 없으면 무시
-      if (!targetElement) return;
+        if (!targetElement) return;
 
-      // 기본 이동 동작 막기
-      event.preventDefault();
+        event.preventDefault();
 
-      // sticky header 때문에 섹션 제목이 header에 가려질 수 있음
-      // 그래서 header 높이만큼 위쪽 여백을 빼줌
-      const headerHeight = header ? header.offsetHeight : 0;
+        const headerHeight =
+          header ? header.offsetHeight : 0;
 
-      // 이동할 위치 계산
-      const targetTop =
-        targetElement.getBoundingClientRect().top +
-        window.scrollY -
-        headerHeight -
-        12;
+        const targetTop =
+          targetElement.getBoundingClientRect().top +
+          window.scrollY -
+          headerHeight -
+          12;
 
-      // 계산한 위치로 부드럽게 이동
-      window.scrollTo({
-        top: targetTop,
-        behavior: "smooth",
+        window.scrollTo({
+          top: targetTop,
+          behavior: "smooth",
+        });
       });
     });
-    loadNotices();
-  });
 
   // =========================
   // 2. 스크롤 위치에 따라 현재 메뉴 active 표시
@@ -461,4 +635,50 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 페이지 처음 열렸을 때도 한 번 실행
   toggleHeaderShadow();
+
+const pagination =
+  document.querySelector("#notice-pagination");
+
+if (pagination) {
+  pagination.addEventListener(
+    "click",
+    (event) => {
+      const button = event.target.closest(
+        "[data-page]"
+      );
+
+      if (!button) return;
+
+      const page = Number(
+        button.dataset.page
+      );
+
+      if (!Number.isInteger(page)) return;
+
+      renderNoticeBoard(noticeData, page);
+
+      const board =
+        document.querySelector("#notice-list");
+
+      if (board) {
+        const headerHeight =
+          header ? header.offsetHeight : 0;
+
+        const targetTop =
+          board.getBoundingClientRect().top +
+          window.scrollY -
+          headerHeight -
+          24;
+
+        window.scrollTo({
+          top: targetTop,
+          behavior: "smooth",
+        });
+      }
+    }
+  );
+}
+
+  // 공지사항은 한 번만 불러오기
+  loadNotices();
 });
