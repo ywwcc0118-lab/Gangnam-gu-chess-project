@@ -2,24 +2,75 @@
 // Gangnam Chess Federation
 // script.js
 // =========================
-//
-// 이 파일에서 하는 일:
-// 1. 메뉴 클릭하면 해당 섹션으로 부드럽게 이동
-// 2. 스크롤 위치에 따라 현재 보고 있는 메뉴에 active 표시
-// 3. 공지 카드 영역을 마우스 휠로 가로 스크롤 가능하게 만들기
-// 4. 공지 카드 영역을 마우스로 드래그해서 움직일 수 있게 만들기
-// 5. 페이지를 내리면 Header에 그림자 효과 추가
-//
 
 // 공지 API URL
-const NOTICE_API_URL="https://script.google.com/macros/s/AKfycbwSLSHgC4OfUcj4-z-3AdQGLY5qEnrtlTDyFnbzY3qRJgxwWqZ8zlGlxRK1CyWvB-ip/exec"
+const NOTICE_API_URL =
+  "https://script.google.com/macros/s/AKfycbwSLSHgC4OfUcj4-z-3AdQGLY5qEnrtlTDyFnbzY3qRJgxwWqZ8zlGlxRK1CyWvB-ip/exec";
+
+// 엘리트 선수단 대회 이력 API URL
+const ELITE_RECORD_API_URL =
+  "https://script.google.com/macros/s/AKfycbwv24W3Xb30jmXvfOEsu1UQ6EbYpjhvT6OgOQScZhokv7OsXQYNGz-v1noNYJZB-UjH/exec";
 
 let noticeData = [];
-// 공지 불러오기
+
+const NOTICES_PER_PAGE = 8;
+
+// 카테고리 카드 고정 순서
+const ELITE_CATEGORY_ORDER = [
+  "Olympiad",
+  "Kadet",
+  "League",
+];
+
+// =========================
+// 공지사항 기능
+// =========================
+
+function renderNoticeBoard(notices, page = 1) {
+  const container = document.querySelector("#notice-list");
+  const pagination = document.querySelector("#notice-pagination");
+
+  if (!container) return;
+
+  if (notices.length === 0) {
+    container.innerHTML = `
+      <p class="notice-empty">
+        등록된 공지사항이 없습니다.
+      </p>
+    `;
+
+    if (pagination) {
+      pagination.innerHTML = "";
+    }
+
+    return;
+  }
+
+  const totalPages = Math.ceil(notices.length / NOTICES_PER_PAGE);
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const startIndex = (safePage - 1) * NOTICES_PER_PAGE;
+
+  const noticesForPage = notices.slice(
+    startIndex,
+    startIndex + NOTICES_PER_PAGE
+  );
+
+  container.innerHTML = `
+    <div class="notice-board-header">
+      <span>분류</span>
+      <span>제목</span>
+      <span>날짜</span>
+    </div>
+
+    ${noticesForPage.map(createNoticeListItem).join("")}
+  `;
+
+  renderPagination(pagination, totalPages, safePage);
+}
+
 async function loadNotices() {
   const container = document.querySelector("#notice-list");
 
-  // 공지 영역이 없는 페이지에서는 실행하지 않음
   if (!container) return;
 
   container.innerHTML = `
@@ -45,18 +96,28 @@ async function loadNotices() {
       );
     }
 
-    noticeData = result.notices;
+    noticeData = [...result.notices].sort((a, b) => {
+      const aTime = new Date(a.date).getTime();
+      const bTime = new Date(b.date).getTime();
+
+      const safeATime = Number.isNaN(aTime) ? -Infinity : aTime;
+      const safeBTime = Number.isNaN(bTime) ? -Infinity : bTime;
+
+      return safeBTime - safeATime;
+    });
 
     const currentPage =
       window.location.pathname.split("/").pop() || "index.html";
 
-    // 메인 페이지는 최근 4개, 공지 페이지는 전체 출력
-    const noticesToShow =
-      currentPage === "index.html"
-        ? noticeData.slice(0, 4)
-        : noticeData;
+    const isHomePage =
+      currentPage === "index.html" ||
+      currentPage === "";
 
-    renderNotices(container, noticesToShow);
+    if (isHomePage) {
+      renderNotices(container, noticeData.slice(0, 4));
+    } else {
+      renderNoticeBoard(noticeData, 1);
+    }
   } catch (error) {
     console.error("공지사항 로딩 실패:", error);
 
@@ -69,6 +130,98 @@ async function loadNotices() {
   }
 }
 
+function createNoticeListItem(notice) {
+  const externalUrl = String(notice.externalUrl ?? "").trim();
+
+  const titleHtml = externalUrl
+    ? `
+      <a
+        href="${escapeHtml(externalUrl)}"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="notice-board-title"
+      >
+        ${escapeHtml(notice.title)}
+      </a>
+    `
+    : `
+      <span class="notice-board-title disabled">
+        ${escapeHtml(notice.title)}
+      </span>
+    `;
+
+  return `
+    <article class="notice-board-item">
+      <span class="notice-board-category">
+        ${escapeHtml(notice.category)}
+      </span>
+
+      <div class="notice-board-content">
+        ${titleHtml}
+
+        <p>
+          ${escapeHtml(notice.summary)}
+        </p>
+      </div>
+
+      <time class="notice-board-date">
+        ${formatDate(notice.date)}
+      </time>
+    </article>
+  `;
+}
+
+function renderPagination(container, totalPages, currentPage) {
+  if (!container || totalPages <= 1) {
+    if (container) {
+      container.innerHTML = "";
+    }
+
+    return;
+  }
+
+  let paginationHtml = "";
+
+  if (currentPage > 1) {
+    paginationHtml += `
+      <button
+        type="button"
+        class="pagination-button"
+        data-page="${currentPage - 1}"
+      >
+        이전
+      </button>
+    `;
+  }
+
+  for (let page = 1; page <= totalPages; page++) {
+    paginationHtml += `
+      <button
+        type="button"
+        class="pagination-button ${page === currentPage ? "active" : ""}"
+        data-page="${page}"
+        aria-current="${page === currentPage ? "page" : "false"}"
+      >
+        ${page}
+      </button>
+    `;
+  }
+
+  if (currentPage < totalPages) {
+    paginationHtml += `
+      <button
+        type="button"
+        class="pagination-button"
+        data-page="${currentPage + 1}"
+      >
+        다음
+      </button>
+    `;
+  }
+
+  container.innerHTML = paginationHtml;
+}
+
 function renderNotices(container, notices) {
   if (notices.length === 0) {
     container.innerHTML = `
@@ -76,23 +229,18 @@ function renderNotices(container, notices) {
         등록된 공지사항이 없습니다.
       </p>
     `;
+
     return;
   }
 
-  container.innerHTML = notices
-    .map(createNoticeCard)
-    .join("");
+  container.innerHTML = notices.map(createNoticeCard).join("");
 }
 
 function createNoticeCard(notice) {
-  const highlightClass =
-    notice.important === true ? " highlight" : "";
+  const highlightClass = notice.important === true ? " highlight" : "";
 
-  const externalUrl =
-    String(notice.externalUrl ?? "").trim();
-
-  const imageUrl =
-    String(notice.imageUrl ?? "").trim();
+  const externalUrl = String(notice.externalUrl ?? "").trim();
+  const imageUrl = String(notice.imageUrl ?? "").trim();
 
   const imageHtml = imageUrl
     ? `
@@ -144,6 +292,296 @@ function createNoticeCard(notice) {
   `;
 }
 
+// =========================
+// 엘리트 선수단 대회 이력 기능
+// =========================
+
+async function loadEliteRecords() {
+  const container = document.querySelector("#elite-record-grid");
+
+  if (!container) return;
+
+  container.innerHTML = `
+    <p class="notice-loading">
+      대회 이력을 불러오는 중입니다.
+    </p>
+  `;
+
+  try {
+    const response = await fetch(ELITE_RECORD_API_URL, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP 오류: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success === false) {
+      throw new Error(
+        result.message || "대회 이력 데이터를 불러오지 못했습니다."
+      );
+    }
+
+    const records = getEliteRecordsFromResult(result);
+
+    if (records.length === 0) {
+      container.innerHTML = `
+        <p class="notice-empty">
+          등록된 대회 이력이 없습니다.
+        </p>
+      `;
+
+      return;
+    }
+
+    container.innerHTML = renderLatestEliteRecordByCategory(records);
+  } catch (error) {
+    console.error("대회 이력 로딩 실패:", error);
+
+    container.innerHTML = `
+      <p class="notice-error">
+        대회 이력을 불러오지 못했습니다.
+        잠시 후 다시 시도해 주세요.
+      </p>
+    `;
+  }
+}
+
+function getEliteRecordsFromResult(result) {
+  let records = [];
+
+  if (Array.isArray(result)) {
+    records = result;
+  } else if (Array.isArray(result.records)) {
+    records = result.records;
+  } else if (Array.isArray(result.data)) {
+    records = result.data;
+  }
+
+  return records
+    .map(normalizeEliteRecord)
+    .filter((record) => {
+      return (
+        record.category ||
+        record.eventName ||
+        record.date ||
+        record.location ||
+        record.achievement ||
+        record.players
+      );
+    });
+}
+
+function normalizeEliteRecord(record) {
+  return {
+    category:
+      normalizeEliteCategory(
+        record.category ||
+        record.Category ||
+        ""
+      ),
+
+    eventName:
+      record.eventName ||
+      record["event name"] ||
+      record["Event Name"] ||
+      record.event_name ||
+      "",
+
+    date:
+      record.date ||
+      record.Date ||
+      "",
+
+    location:
+      record.location ||
+      record.Location ||
+      "",
+
+    achievement:
+      record.achievement ||
+      record.Achievement ||
+      "",
+
+    players:
+      record.players ||
+      record.Players ||
+      "",
+  };
+}
+
+function normalizeEliteCategory(categoryValue) {
+  const category = String(categoryValue).trim().toLowerCase();
+
+  if (category === "olympiad") {
+    return "Olympiad";
+  }
+
+  if (category === "kadet" || category === "cadet") {
+    return "Kadet";
+  }
+
+  if (category === "league") {
+    return "League";
+  }
+
+  return "";
+}
+
+// 핵심:
+// 카테고리 카드는 고정으로 만들고,
+// 각 카테고리 안에서는 날짜가 가장 최신인 대회 1개만 표시함.
+function renderLatestEliteRecordByCategory(records) {
+  return ELITE_CATEGORY_ORDER
+    .map((category) => {
+      const latestRecord = records
+        .filter((record) => record.category === category)
+        .sort((a, b) => {
+          const dateA = parseEliteDate(a.date);
+          const dateB = parseEliteDate(b.date);
+
+          return dateB - dateA;
+        })[0];
+
+      return createEliteCategoryCard(category, latestRecord);
+    })
+    .join("");
+}
+
+function createEliteCategoryCard(category, record) {
+  if (!record) {
+    return `
+      <article class="record-card">
+        <h4>${escapeHtml(category)}</h4>
+
+        <ul>
+          <li>등록된 대회 이력이 없습니다.</li>
+        </ul>
+      </article>
+    `;
+  }
+
+  return `
+    <article class="record-card">
+      <h4>${escapeHtml(category)}</h4>
+
+      <ul>
+        <li>
+          <strong>대회:</strong>
+          ${escapeHtml(record.eventName)}
+        </li>
+
+        <li>
+          <strong>날짜:</strong>
+          ${escapeHtml(record.date)}
+        </li>
+
+        <li>
+          <strong>장소:</strong>
+          ${escapeHtml(record.location)}
+        </li>
+
+        <li>
+          <strong>주요 성과:</strong>
+          ${escapeHtml(record.achievement)}
+        </li>
+
+        <li>
+          <strong>대표 선수:</strong>
+          ${escapeHtml(record.players)}
+        </li>
+      </ul>
+    </article>
+  `;
+}
+
+function parseEliteDate(dateValue) {
+  if (!dateValue) return 0;
+
+  const dateText = String(dateValue).trim();
+
+  // 2026년 5월 14일 - 5월 19일 형식
+  // 2026년 5월 14일 형식
+  const koreanDateMatch = dateText.match(
+    /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/
+  );
+
+  if (koreanDateMatch) {
+    const year = koreanDateMatch[1];
+    const month = koreanDateMatch[2].padStart(2, "0");
+    const day = koreanDateMatch[3].padStart(2, "0");
+
+    return new Date(`${year}-${month}-${day}T00:00:00+09:00`).getTime();
+  }
+
+  // 2026년 5월 형식
+  const koreanMonthMatch = dateText.match(
+    /(\d{4})년\s*(\d{1,2})월/
+  );
+
+  if (koreanMonthMatch) {
+    const year = koreanMonthMatch[1];
+    const month = koreanMonthMatch[2].padStart(2, "0");
+
+    return new Date(`${year}-${month}-01T00:00:00+09:00`).getTime();
+  }
+
+  // 2025-09-13 형식
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateText)) {
+    const [year, month, day] = dateText.split("-");
+
+    return new Date(
+      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00+09:00`
+    ).getTime();
+  }
+
+  // 2025-09 형식
+  if (/^\d{4}-\d{1,2}$/.test(dateText)) {
+    const [year, month] = dateText.split("-");
+
+    return new Date(
+      `${year}-${month.padStart(2, "0")}-01T00:00:00+09:00`
+    ).getTime();
+  }
+
+  // 2025 형식
+  if (/^\d{4}$/.test(dateText)) {
+    return new Date(`${dateText}-01-01T00:00:00+09:00`).getTime();
+  }
+
+  // 2025.09.13 또는 2025.9.13 형식
+  if (/^\d{4}\.\d{1,2}\.\d{1,2}$/.test(dateText)) {
+    const [year, month, day] = dateText.split(".");
+
+    return new Date(
+      `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00+09:00`
+    ).getTime();
+  }
+
+  // 2025.09 또는 2025.9 형식
+  if (/^\d{4}\.\d{1,2}$/.test(dateText)) {
+    const [year, month] = dateText.split(".");
+
+    return new Date(
+      `${year}-${month.padStart(2, "0")}-01T00:00:00+09:00`
+    ).getTime();
+  }
+
+  const parsedDate = new Date(dateText).getTime();
+
+  if (Number.isNaN(parsedDate)) {
+    return 0;
+  }
+
+  return parsedDate;
+}
+
+// =========================
+// 공통 함수
+// =========================
+
 function formatDate(dateValue) {
   if (!dateValue) return "";
 
@@ -175,112 +613,44 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function getSafeExternalUrl(value) {
-  const url = String(value ?? "").trim();
+// =========================
+// 페이지 로딩 후 실행
+// =========================
 
-  if (!url) return "";
-
-  try {
-    const parsedUrl = new URL(url);
-
-    // http 또는 https 주소만 허용
-    if (
-      parsedUrl.protocol !== "http:" &&
-      parsedUrl.protocol !== "https:"
-    ) {
-      return "";
-    }
-
-    return parsedUrl.href;
-  } catch {
-    return "";
-  }
-}
-
-// HTML 문서가 다 로딩된 후 JavaScript 실행
 document.addEventListener("DOMContentLoaded", () => {
-  // =========================
-  // 필요한 HTML 요소 가져오기
-  // =========================
-
-  // 상단 헤더
   const header = document.querySelector(".header");
-
-  // Header 안에 있는 메뉴 링크들
   const navLinks = document.querySelectorAll(".nav a");
-
-  // id가 있는 모든 section 가져오기
-  // 예: #notice, #about, #elite, #youth, #benefits
   const sections = document.querySelectorAll("section[id]");
-
-  // 공지 가로 스크롤 영역
   const noticeScroll = document.querySelector(".notice-scroll");
-
-  // =========================
-  // 1. 메뉴 클릭 시 부드럽게 이동
-  // =========================
-  //
-  // 기본 a 태그는 바로 순간이동하듯 이동함.
-  // 여기서는 클릭하면 부드럽게 스크롤되도록 바꿈.
-  //
-  // 예:
-  // 공지 메뉴 클릭 → #notice 섹션으로 이동
-  // 소개 메뉴 클릭 → #about 섹션으로 이동
-  //
 
   navLinks.forEach((link) => {
     link.addEventListener("click", (event) => {
-      // 클릭한 메뉴의 href 값 가져오기
-      // 예: "#notice", "#about"
       const targetId = link.getAttribute("href");
 
-      // href가 없거나 #으로 시작하지 않으면 무시
       if (!targetId || !targetId.startsWith("#")) return;
 
-      // 이동할 실제 섹션 찾기
       const targetElement = document.querySelector(targetId);
 
-      // 해당 섹션이 없으면 무시
       if (!targetElement) return;
 
-      // 기본 이동 동작 막기
       event.preventDefault();
 
-      // sticky header 때문에 섹션 제목이 header에 가려질 수 있음
-      // 그래서 header 높이만큼 위쪽 여백을 빼줌
       const headerHeight = header ? header.offsetHeight : 0;
 
-      // 이동할 위치 계산
       const targetTop =
         targetElement.getBoundingClientRect().top +
         window.scrollY -
         headerHeight -
         12;
 
-      // 계산한 위치로 부드럽게 이동
       window.scrollTo({
         top: targetTop,
         behavior: "smooth",
       });
     });
-    loadNotices();
   });
 
-  // =========================
-  // 2. 스크롤 위치에 따라 현재 메뉴 active 표시
-  // =========================
-  //
-  // 사용자가 공지 섹션을 보고 있으면 공지 메뉴에 active 클래스 추가.
-  // 소개 섹션을 보고 있으면 소개 메뉴에 active 클래스 추가.
-  //
-  // CSS에서 .nav a.active 스타일을 줬기 때문에
-  // 현재 위치가 메뉴에 표시됨.
-  //
-
   function updateActiveNav() {
-    // 현재 스크롤 위치
-    // +140을 하는 이유:
-    // 헤더 높이와 여백 때문에 실제 보이는 위치 기준을 조금 아래로 잡기 위해서
     const scrollPosition = window.scrollY + 140;
 
     sections.forEach((section) => {
@@ -288,16 +658,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const sectionHeight = section.offsetHeight;
       const sectionId = section.getAttribute("id");
 
-      // 현재 스크롤 위치가 이 섹션 범위 안에 있으면
       if (
         scrollPosition >= sectionTop &&
         scrollPosition < sectionTop + sectionHeight
       ) {
-        // 모든 메뉴에서 active 제거
         navLinks.forEach((link) => {
           link.classList.remove("active");
 
-          // 현재 섹션 id와 메뉴 href가 같으면 active 추가
           if (link.getAttribute("href") === `#${sectionId}`) {
             link.classList.add("active");
           }
@@ -306,149 +673,88 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 스크롤할 때마다 현재 메뉴 업데이트
   window.addEventListener("scroll", updateActiveNav);
-
-  // 페이지 처음 열렸을 때도 한 번 실행
   updateActiveNav();
 
-  // =========================
-  // 3. 공지 영역 마우스 휠 가로 스크롤
-  // =========================
-  //
-  // 보통 마우스 휠을 내리면 세로로 내려감.
-  // 그런데 공지 카드 영역 위에서는
-  // 휠을 내렸을 때 카드들이 옆으로 움직이게 만듦.
-  //
-  // 즉:
-  // 마우스 휠 아래로 → 공지 카드 오른쪽으로 이동
-  // 마우스 휠 위로 → 공지 카드 왼쪽으로 이동
-  //
-
   if (noticeScroll) {
-  noticeScroll.addEventListener(
-  "wheel",
-  (event) => {
-    // 트랙패드에서 이미 가로로 움직이는 경우는
-    // 브라우저 기본 동작에 맡김
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-      return;
-    }
+    noticeScroll.addEventListener(
+      "wheel",
+      (event) => {
+        if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+          return;
+        }
 
-    const maxScrollLeft =
-      noticeScroll.scrollWidth - noticeScroll.clientWidth;
+        const maxScrollLeft =
+          noticeScroll.scrollWidth - noticeScroll.clientWidth;
 
-    // 카드가 영역보다 작아서 가로 스크롤이 필요 없는 경우
-    if (maxScrollLeft <= 1) {
-      return;
-    }
+        if (maxScrollLeft <= 1) {
+          return;
+        }
 
-    const isScrollingRight = event.deltaY > 0;
-    const isScrollingLeft = event.deltaY < 0;
+        const isScrollingRight = event.deltaY > 0;
+        const isScrollingLeft = event.deltaY < 0;
 
-    const isAtStart = noticeScroll.scrollLeft <= 0;
-    const isAtEnd =
-      noticeScroll.scrollLeft >= maxScrollLeft - 1;
+        const isAtStart = noticeScroll.scrollLeft <= 0;
+        const isAtEnd =
+          noticeScroll.scrollLeft >= maxScrollLeft - 1;
 
-    // 오른쪽으로 더 이동할 수 있는지
-    const canScrollRight =
-      isScrollingRight && !isAtEnd;
+        const canScrollRight =
+          isScrollingRight && !isAtEnd;
 
-    // 왼쪽으로 더 이동할 수 있는지
-    const canScrollLeft =
-      isScrollingLeft && !isAtStart;
+        const canScrollLeft =
+          isScrollingLeft && !isAtStart;
 
-    // 실제로 가로 이동할 수 있을 때만
-    // 페이지의 세로 스크롤을 막음
-    if (canScrollRight || canScrollLeft) {
-      event.preventDefault();
+        if (canScrollRight || canScrollLeft) {
+          event.preventDefault();
 
-      noticeScroll.scrollLeft += event.deltaY;
-    }
-  },
-  {
-    passive: false,
-  }
-);
+          noticeScroll.scrollLeft += event.deltaY;
+        }
+      },
+      {
+        passive: false,
+      }
+    );
 
-    // =========================
-    // 4. 공지 영역 마우스 드래그 스크롤
-    // =========================
-    //
-    // 공지 카드를 마우스로 잡고 옆으로 끌 수 있게 만듦.
-    //
-    // 동작 방식:
-    // 1. 마우스를 누른 순간 위치 저장
-    // 2. 마우스를 움직이면 이동 거리 계산
-    // 3. 그 거리만큼 noticeScroll.scrollLeft 변경
-    // 4. 마우스를 떼면 드래그 종료
-    //
+    let isDragging = false;
+    let startX = 0;
+    let scrollLeft = 0;
 
-    let isDragging = false; // 현재 드래그 중인지 확인
-    let startX = 0; // 처음 마우스를 누른 X 좌표
-    let scrollLeft = 0; // 드래그 시작 당시의 스크롤 위치
-
-    // 마우스를 눌렀을 때 드래그 시작
     noticeScroll.addEventListener("mousedown", (event) => {
       isDragging = true;
 
-      // CSS에서 드래그 중 스타일을 주고 싶으면 사용 가능
       noticeScroll.classList.add("dragging");
 
-      // 공지 영역 기준으로 마우스 X 위치 저장
       startX = event.pageX - noticeScroll.offsetLeft;
-
-      // 현재 가로 스크롤 위치 저장
       scrollLeft = noticeScroll.scrollLeft;
     });
 
-    // 마우스가 공지 영역 밖으로 나가면 드래그 종료
     noticeScroll.addEventListener("mouseleave", () => {
       isDragging = false;
+
       noticeScroll.classList.remove("dragging");
     });
 
-    // 마우스를 떼면 드래그 종료
     noticeScroll.addEventListener("mouseup", () => {
       isDragging = false;
+
       noticeScroll.classList.remove("dragging");
     });
 
-    // 마우스를 움직일 때 실제 가로 스크롤 처리
     noticeScroll.addEventListener("mousemove", (event) => {
-      // 드래그 중이 아니면 아무것도 안 함
       if (!isDragging) return;
 
-      // 기본 텍스트 선택 같은 동작 방지
       event.preventDefault();
 
-      // 현재 마우스 X 위치
       const x = event.pageX - noticeScroll.offsetLeft;
-
-      // 처음 위치에서 얼마나 움직였는지 계산
-      // 1.4를 곱해서 드래그 속도를 살짝 빠르게 만듦
       const walk = (x - startX) * 1.4;
 
-      // 계산한 거리만큼 가로 스크롤 이동
       noticeScroll.scrollLeft = scrollLeft - walk;
     });
   }
 
-  // =========================
-  // 5. 스크롤 시 Header 그림자 효과
-  // =========================
-  //
-  // 페이지 맨 위에서는 header가 깔끔하게 보이고,
-  // 조금이라도 아래로 스크롤하면 그림자를 추가해서
-  // header가 떠 있는 느낌을 줌.
-  //
-  // CSS에 .header.scrolled 스타일이 있어야 작동함.
-  //
-
   function toggleHeaderShadow() {
     if (!header) return;
 
-    // 20px 이상 내려가면 scrolled 클래스 추가
     if (window.scrollY > 20) {
       header.classList.add("scrolled");
     } else {
@@ -456,9 +762,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 스크롤할 때마다 header 그림자 상태 확인
   window.addEventListener("scroll", toggleHeaderShadow);
-
-  // 페이지 처음 열렸을 때도 한 번 실행
   toggleHeaderShadow();
+
+  const pagination = document.querySelector("#notice-pagination");
+
+  if (pagination) {
+    pagination.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page]");
+
+      if (!button) return;
+
+      const page = Number(button.dataset.page);
+
+      if (!Number.isInteger(page)) return;
+
+      renderNoticeBoard(noticeData, page);
+
+      const board = document.querySelector("#notice-list");
+
+      if (board) {
+        const headerHeight = header ? header.offsetHeight : 0;
+
+        const targetTop =
+          board.getBoundingClientRect().top +
+          window.scrollY -
+          headerHeight -
+          24;
+
+        window.scrollTo({
+          top: targetTop,
+          behavior: "smooth",
+        });
+      }
+    });
+  }
+
+  loadNotices();
+
+  loadEliteRecords();
 });
