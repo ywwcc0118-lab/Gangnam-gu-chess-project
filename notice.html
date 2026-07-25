@@ -14,7 +14,11 @@
   <header class="header">
     <div class="container header-inner">
       <a href="index.html" class="logo-area">
-        <img src="images/logo.png" alt="강남구 체스 연맹 로고" class="logo" />
+        <img
+          src="images/logo.png"
+          alt="강남구 체스 연맹 로고"
+          class="logo"
+        />
         <span class="site-title">강남구 체스연맹</span>
       </a>
 
@@ -42,17 +46,26 @@
           </h1>
 
           <p class="home-description">
-            대회 일정, 연맹 업데이트, 청소년 위원회 활동, 엘리트 선수단 소식을 확인할 수 있습니다.
+            대회 일정, 연맹 업데이트, 청소년 위원회 활동,
+            엘리트 선수단 소식을 확인할 수 있습니다.
           </p>
 
           <div class="home-buttons">
-            <a href="index.html" class="btn btn-blue">홈으로</a>
-            <a href="about.html" class="btn btn-red">연맹 소개 보기</a>
+            <a href="index.html" class="btn btn-blue">
+              홈으로
+            </a>
+
+            <a href="about.html" class="btn btn-red">
+              연맹 소개 보기
+            </a>
           </div>
         </div>
 
         <div class="home-image">
-          <img src="images/notices.jpg" alt="공지 페이지 대표 사진" />
+          <img
+            src="images/notices.jpg"
+            alt="공지 페이지 대표 사진"
+          />
         </div>
       </div>
     </section>
@@ -62,10 +75,75 @@
         <div class="section-heading">
           <p class="eyebrow">Notice</p>
           <h1>전체 공지사항</h1>
-          <p>강남구체스연맹의 소식과 모집 안내를 확인할 수 있습니다.</p>
+          <p>
+            강남구체스연맹의 소식과 모집 안내를 확인할 수 있습니다.
+          </p>
         </div>
 
-        <div id="notice-list" class="notice-board">
+        <form
+          id="notice-search-form"
+          class="notice-search"
+          role="search"
+        >
+          <div class="notice-search-fields">
+            <div class="notice-search-field">
+              <label for="notice-title-search">
+                제목 검색
+              </label>
+
+              <input
+                id="notice-title-search"
+                name="title"
+                type="search"
+                placeholder="찾고 싶은 공지 제목을 입력하세요"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="notice-search-field">
+              <label for="notice-date-search">
+                날짜 검색
+              </label>
+
+              <input
+                id="notice-date-search"
+                name="date"
+                type="date"
+              />
+            </div>
+
+            <div class="notice-search-actions">
+              <button
+                type="submit"
+                class="notice-search-button"
+              >
+                검색
+              </button>
+
+              <button
+                id="notice-search-reset"
+                type="button"
+                class="notice-search-reset"
+              >
+                초기화
+              </button>
+            </div>
+          </div>
+
+          <p
+            id="notice-search-result"
+            class="notice-search-result"
+            aria-live="polite"
+          >
+            공지사항을 불러오는 중입니다.
+          </p>
+        </form>
+
+        <div
+          id="notice-list"
+          class="notice-board"
+          aria-live="polite"
+        >
           <p class="notice-loading">
             공지사항을 불러오는 중입니다.
           </p>
@@ -92,19 +170,25 @@
           <article class="benefit-card">
             <div class="benefit-icon blue">🏆</div>
             <h3>대회 공지</h3>
-            <p>대회 일정, 참가 신청, 결과 발표를 확인할 수 있습니다.</p>
+            <p>
+              대회 일정, 참가 신청, 결과 발표를 확인할 수 있습니다.
+            </p>
           </article>
 
           <article class="benefit-card">
             <div class="benefit-icon red">📢</div>
             <h3>Update / News</h3>
-            <p>홈페이지 업데이트와 연맹의 새로운 소식을 확인할 수 있습니다.</p>
+            <p>
+              홈페이지 업데이트와 연맹의 새로운 소식을 확인할 수 있습니다.
+            </p>
           </article>
 
           <article class="benefit-card">
             <div class="benefit-icon blue">🤝</div>
             <h3>활동 소식</h3>
-            <p>청소년 위원회, 봉사 활동, 선수단 활동 소식을 확인할 수 있습니다.</p>
+            <p>
+              청소년 위원회, 봉사 활동, 선수단 활동 소식을 확인할 수 있습니다.
+            </p>
           </article>
         </div>
       </div>
@@ -114,7 +198,11 @@
   <footer class="footer">
     <div class="container footer-inner">
       <div class="footer-brand">
-        <img src="images/logo.png" alt="강남구 체스 연맹 로고" />
+        <img
+          src="images/logo.png"
+          alt="강남구 체스 연맹 로고"
+        />
+
         <div>
           <h2>강남구 체스 연맹</h2>
           <p>Gangnam Chess Federation</p>
@@ -129,6 +217,7 @@
 
       <div class="footer-social">
         <p>팔로우하기</p>
+
         <div>
           <a
             href="https://www.instagram.com/gangnamgu_chess_federation/"
